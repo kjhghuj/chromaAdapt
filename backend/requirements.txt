@@ -1,7 +1,5 @@
-fastapi
-uvicorn
+django
 requests
-pydantic
 python-dotenv
 hvac
 httpx

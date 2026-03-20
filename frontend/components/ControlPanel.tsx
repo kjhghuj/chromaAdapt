@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Loader2, Wand2 } from 'lucide-react';
-import { AppState, ProcessingState, TranslationTarget, StyleConfig, TargetFont } from '../types';
+import { AppState, ProcessingState, TranslationTarget, StyleConfig, TargetFont, SecondaryWorkflowMode, ColorWorkflowMode } from '../types';
 import { getTranslation } from '../utils/translations';
 import ColorPaletteDisplay from './ColorPaletteDisplay';
 import StyleControls from './StyleControls';
@@ -18,6 +18,7 @@ interface ControlPanelProps {
   onTranslationTargetChange: (target: TranslationTarget) => void;
   onGenerate: () => void;
   onAnalyzeSecondary?: () => void;
+  onAnalyzeColorAdapt?: () => void;
   onAnalyzeEdit?: () => void;
   onTargetFontChange?: (font: TargetFont) => void;
   onEditPromptChange?: (val: string) => void;
@@ -25,11 +26,12 @@ interface ControlPanelProps {
   onPipelineBatchUpload?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onBatchTranslateStart?: () => void;
   onConcurrentCountChange?: (count: number) => void;
-  onTogglePrecisionMode?: () => void;
   onSecondaryBatchUpload?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onSecondaryBatchGenerate?: () => void;
   onRemoveSecondaryBatchItem?: (id: string) => void;
   onClearSecondaryBatch?: () => void;
+  onSecondaryWorkflowModeChange?: (mode: SecondaryWorkflowMode) => void;
+  onColorWorkflowModeChange?: (mode: ColorWorkflowMode) => void;
 }
 
 const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -40,6 +42,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   onTranslationTargetChange,
   onGenerate,
   onAnalyzeSecondary,
+  onAnalyzeColorAdapt,
   onAnalyzeEdit,
   onTargetFontChange,
   onEditPromptChange,
@@ -47,11 +50,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   onPipelineBatchUpload,
   onBatchTranslateStart,
   onConcurrentCountChange,
-  onTogglePrecisionMode,
   onSecondaryBatchUpload,
   onSecondaryBatchGenerate,
   onRemoveSecondaryBatchItem,
-  onClearSecondaryBatch
+  onClearSecondaryBatch,
+  onSecondaryWorkflowModeChange,
+  onColorWorkflowModeChange
 }) => {
   const t = getTranslation(state.language);
 
@@ -76,7 +80,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
     { code: 'bold_display', label: t.fontBold },
   ];
 
-  const showReferenceUpload = state.mode === 'COLOR_ADAPT' || state.mode === 'PRODUCT_REPLACE' || state.mode === 'IMAGE_EDIT';
+  const showReferenceUpload = state.mode === 'COLOR_ADAPT' || state.mode === 'IMAGE_EDIT';
   const showPalette = state.mode === 'COLOR_ADAPT';
   const showStyleConfig = state.mode === 'COLOR_ADAPT';
   const showLanguageConfig = state.mode === 'TRANSLATION';
@@ -86,7 +90,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
     if (state.mode === 'COLOR_ADAPT') {
       return state.concurrentCount > 1 ? `${t.generateCount}${state.concurrentCount}` : t.generate;
     }
-    if (state.mode === 'PRODUCT_REPLACE') return t.generateSwap;
     if (state.mode === 'IMAGE_EDIT') return t.startEdit;
     if (state.mode === 'SECONDARY_GENERATION') return "2. Generate Image";
     if (state.mode === 'TRANSLATION') return "2. Translate";
@@ -162,39 +165,19 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             onEditPromptChange={onEditPromptChange}
             onEditUserInputChange={onEditUserInputChange}
             onAnalyzeSecondary={onAnalyzeSecondary}
+            onAnalyzeColorAdapt={onAnalyzeColorAdapt}
             onAnalyzeEdit={onAnalyzeEdit}
             onSecondaryBatchUpload={onSecondaryBatchUpload}
             onSecondaryBatchGenerate={onSecondaryBatchGenerate}
             onRemoveSecondaryBatchItem={onRemoveSecondaryBatchItem}
             onClearSecondaryBatch={onClearSecondaryBatch}
+            onSecondaryWorkflowModeChange={onSecondaryWorkflowModeChange}
+            onColorWorkflowModeChange={onColorWorkflowModeChange}
           />
 
-          {/* Concurrent Count & Precision Mode (COLOR_ADAPT only) */}
+          {/* Concurrent Count (COLOR_ADAPT only) */}
           {state.mode === 'COLOR_ADAPT' && (
             <div className="mb-4 space-y-3">
-              {/* Precision Mode Toggle */}
-              <div
-                onClick={() => onTogglePrecisionMode?.()}
-                className={`flex items-center justify-between px-4 py-3 rounded-xl border cursor-pointer transition-all duration-300 ${state.precisionMode
-                  ? 'bg-gradient-to-r from-amber-500/10 to-orange-500/10 border-amber-400/50 shadow-lg shadow-amber-500/5'
-                  : 'bg-white/50 border-slate-200/60 hover:bg-white hover:border-slate-300'
-                  } ${state.status === ProcessingState.GENERATING ? 'pointer-events-none opacity-50' : ''}`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <span className={`text-lg ${state.precisionMode ? '' : 'grayscale opacity-60'}`}>🎯</span>
-                  <div>
-                    <div className={`text-sm font-semibold ${state.precisionMode ? 'text-amber-700' : 'text-slate-600'}`}>{t.precisionMode}</div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">{t.precisionModeDesc}</div>
-                  </div>
-                </div>
-                <div className={`relative w-10 h-5 rounded-full transition-colors duration-300 ${state.precisionMode ? 'bg-gradient-to-r from-amber-400 to-orange-500' : 'bg-slate-200'
-                  }`}>
-                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-md transition-transform duration-300 ${state.precisionMode ? 'translate-x-5' : 'translate-x-0.5'
-                    }`} />
-                </div>
-              </div>
-
-              {/* Concurrent Count */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-sm font-display font-semibold text-slate-700">{t.concurrentCount}</label>
@@ -232,7 +215,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                 state.mode === 'COLOR_ADAPT'
                   ? (state.status !== ProcessingState.READY && state.status !== ProcessingState.COMPLETE)
                   : (
-                    (!state.posterImage || (state.mode === 'PRODUCT_REPLACE' && !state.referenceImage) || ((state.mode === 'IMAGE_EDIT' || state.mode === 'SECONDARY_GENERATION') && !state.editPrompt))
+                    (!state.posterImage || (state.mode === 'IMAGE_EDIT' && !state.editPrompt))
                     || state.status === ProcessingState.GENERATING
                   )
               );

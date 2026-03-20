@@ -1,33 +1,55 @@
 
 import React from 'react';
-import { RefreshCw, Globe, Palette, Languages, Box, ImagePlus, Copy, Workflow } from 'lucide-react';
-import { Language, AppMode } from '../types';
+import { RefreshCw, Globe, Palette, Languages, Box, ImagePlus, Copy, ChevronDown } from 'lucide-react';
+import { Language, AppMode, AnalysisModel, GenerationModel } from '../types';
 import { getTranslation } from '../utils/translations';
 
 interface HeaderProps {
   language: Language;
   currentMode: AppMode;
+  analysisModel: AnalysisModel;
+  generationModel: GenerationModel;
   onModeChange: (mode: AppMode) => void;
   onToggleLanguage: () => void;
   onReset: () => void;
+  onAnalysisModelChange: (model: AnalysisModel) => void;
+  onGenerationModelChange: (model: GenerationModel) => void;
 }
 
 const Header: React.FC<HeaderProps> = ({
   language,
   currentMode,
+  analysisModel,
+  generationModel,
   onModeChange,
   onToggleLanguage,
-  onReset
+  onReset,
+  onAnalysisModelChange,
+  onGenerationModelChange
 }) => {
   const t = getTranslation(language);
+  const [modelDropdownOpen, setModelDropdownOpen] = React.useState(false);
 
   const navItems = [
-    { id: 'COLOR_ADAPT' as AppMode, icon: Palette, label: t.modeColor },
-    { id: 'PRODUCT_REPLACE' as AppMode, icon: Box, label: t.modeProduct },
-    { id: 'SECONDARY_GENERATION' as AppMode, icon: Copy, label: t.modeSecondary },
-    { id: 'IMAGE_EDIT' as AppMode, icon: ImagePlus, label: t.modeEdit },
     { id: 'TRANSLATION' as AppMode, icon: Languages, label: t.modeTranslate },
+    { id: 'IMAGE_EDIT' as AppMode, icon: ImagePlus, label: t.modeEdit },
+    { id: 'SECONDARY_GENERATION' as AppMode, icon: Copy, label: t.modeSecondary },
+    { id: 'COLOR_ADAPT' as AppMode, icon: Palette, label: t.modeColor },
   ];
+
+  const analysisModels: { id: AnalysisModel; label: string }[] = [
+    { id: 'doubao-seed-2-0-lite', label: 'Seed-2.0-lite' },
+    { id: 'doubao-seed-2-0-mini', label: 'Seed-2.0-mini' },
+    { id: 'doubao-seed-2-0-pro', label: 'Seed-2.0-pro' },
+  ];
+
+  const generationModels: { id: GenerationModel; label: string }[] = [
+    { id: 'doubao-seedream-4.5', label: 'Seedream-4.5' },
+    { id: 'doubao-seedream-5.0-lite', label: 'Seedream-5.0-lite' },
+  ];
+
+  const getCurrentAnalysisLabel = () => analysisModels.find(m => m.id === analysisModel)?.label || analysisModel;
+  const getCurrentGenerationLabel = () => generationModels.find(m => m.id === generationModel)?.label || generationModel;
 
   return (
     <div className="w-full px-4 sm:px-6 lg:px-8 max-w-[1400px] mx-auto z-50 mt-4 mb-2 shrink-0">
@@ -39,10 +61,10 @@ const Header: React.FC<HeaderProps> = ({
             <div className="bg-gradient-to-br flex items-center justify-center from-brand-500 to-indigo-600 text-white p-1.5 rounded-xl shadow-inner shadow-white/20 ring-1 ring-brand-400/30">
               <img src="/logo.png" alt="Logo" className="w-5 h-5 object-contain" />
             </div>
-            <h1 className="text-xl font-display font-bold tracking-tight text-slate-800 hidden sm:block">
+            <h1 className="text-xl font-display font-bold tracking-tight text-slate-800 hidden lg:block">
               Chroma<span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-600 to-indigo-600">Adapt</span><span className="font-light text-slate-400 ml-1 text-lg">AI</span>
             </h1>
-            <h1 className="text-xl font-bold tracking-tight text-brand-600 sm:hidden">CA</h1>
+            <h1 className="text-xl font-bold tracking-tight text-brand-600 lg:hidden">CA</h1>
           </div>
 
           {/* Center: Navigation */}
@@ -74,7 +96,7 @@ const Header: React.FC<HeaderProps> = ({
           </nav>
 
           {/* Right: Actions */}
-          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <button
               onClick={onToggleLanguage}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full hover:bg-slate-100 text-sm font-medium text-slate-600 transition-colors"
@@ -83,6 +105,56 @@ const Header: React.FC<HeaderProps> = ({
               <span className="hidden sm:inline">{language === 'en' ? '中文' : 'English'}</span>
               <span className="sm:hidden">{language === 'en' ? 'CN' : 'EN'}</span>
             </button>
+            <div className="h-4 w-px bg-slate-200 hidden sm:block"></div>
+
+            {/* Unified Model Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full hover:bg-slate-100 text-sm font-medium text-slate-600 transition-colors border border-slate-200"
+              >
+                <span className="hidden sm:inline">模型</span>
+                <span className="sm:hidden">模型</span>
+                <ChevronDown size={14} className={`transition-transform ${modelDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {modelDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setModelDropdownOpen(false)}></div>
+                  <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 py-2 min-w-[200px]">
+                    <div className="px-3 py-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">分析模型</div>
+                    {analysisModels.map((model) => (
+                      <button
+                        key={model.id}
+                        onClick={() => {
+                          onAnalysisModelChange(model.id);
+                          setModelDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-50 transition-colors flex items-center justify-between ${analysisModel === model.id ? 'text-brand-600 font-medium' : 'text-slate-600'}`}
+                      >
+                        {model.label}
+                        {analysisModel === model.id && <span className="w-1.5 h-1.5 rounded-full bg-brand-500"></span>}
+                      </button>
+                    ))}
+                    <div className="border-t border-slate-100 my-1"></div>
+                    <div className="px-3 py-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">生图模型</div>
+                    {generationModels.map((model) => (
+                      <button
+                        key={model.id}
+                        onClick={() => {
+                          onGenerationModelChange(model.id);
+                          setModelDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-50 transition-colors flex items-center justify-between ${generationModel === model.id ? 'text-brand-600 font-medium' : 'text-slate-600'}`}
+                      >
+                        {model.label}
+                        {generationModel === model.id && <span className="w-1.5 h-1.5 rounded-full bg-brand-500"></span>}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
             <div className="h-4 w-px bg-slate-200 hidden sm:block"></div>
             <button
               onClick={onReset}

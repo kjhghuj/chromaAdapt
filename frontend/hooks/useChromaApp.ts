@@ -1,7 +1,7 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { AppState, ProcessingState, StyleConfig, AppMode, TranslationTarget, TargetFont, GenerationProgress, SecondaryBatchItem } from '../types';
-import { analyzeImageColors, generatePosterAdaptation, generateImageTranslation, generateProductReplacement, generateImageEdit, generateSecondaryImage, generateSecondaryImagePlan, createColorMappingPlan, generatePreciseAdaptation, analyzeAndCreateEditPrompt } from '../services/apiService';
+import { AppState, ProcessingState, StyleConfig, AppMode, TranslationTarget, TargetFont, GenerationProgress, SecondaryBatchItem, SecondaryWorkflowMode, ColorWorkflowMode } from '../types';
+import { analyzeImageColors, generateImageTranslation, generateImageEdit, generateSecondaryImage, analyzeAndCreateSecondaryPrompt, SECONDARY_SINGLE_MODEL_PROMPT, analyzeAndCreateEditPrompt, COLOR_ADAPT_SINGLE_MODEL_PROMPT, analyzeAndCreateColorAdaptPrompt, generateColorAdaptation } from '../services/apiService';
 import { getCSSFilterFromPalette, exportImage } from '../utils/imageHelpers';
 import { getTranslation } from '../utils/translations';
 import { useFileHandlers } from './useFileHandlers';
@@ -20,7 +20,7 @@ const INITIAL_STYLE_CONFIG: StyleConfig = {
 
 export const useChromaApp = () => {
   const [state, setState] = useState<AppState>({
-    mode: 'COLOR_ADAPT',
+    mode: 'TRANSLATION',
     language: 'zh',
     posterImage: null,
     referenceImage: null,
@@ -32,6 +32,7 @@ export const useChromaApp = () => {
     translationTarget: 'en',
     targetFont: 'original',
     editPrompt: '',
+    colorAdaptPrompt: COLOR_ADAPT_SINGLE_MODEL_PROMPT,
     editUserInput: '',
     progress: 0,
     progressText: '',
@@ -41,8 +42,9 @@ export const useChromaApp = () => {
     concurrentCount: 1,
     resultImages: [],
     generationProgress: { ...INITIAL_GENERATION_PROGRESS },
-    precisionMode: false,
-    secondaryBatchQueue: []
+    colorWorkflowMode: 'single_model',
+    secondaryBatchQueue: [],
+    secondaryWorkflowMode: 'single_model'
   });
 
   const [isExporting, setIsExporting] = useState(false);
@@ -97,7 +99,8 @@ export const useChromaApp = () => {
       status: prev.status === ProcessingState.GENERATING ? ProcessingState.GENERATING : (prev.posterImage ? ProcessingState.READY : ProcessingState.IDLE),
       errorMessage: null,
       resultImage: null,
-      editPrompt: '',
+      editPrompt: newMode === 'SECONDARY_GENERATION' ? SECONDARY_SINGLE_MODEL_PROMPT : '',
+      colorAdaptPrompt: newMode === 'COLOR_ADAPT' ? (prev.colorAdaptPrompt || COLOR_ADAPT_SINGLE_MODEL_PROMPT) : prev.colorAdaptPrompt,
       editUserInput: ''
     }));
   }, []);
@@ -115,6 +118,7 @@ export const useChromaApp = () => {
       status: ProcessingState.IDLE,
       progress: 0,
       editPrompt: '',
+      colorAdaptPrompt: type === 'poster' ? COLOR_ADAPT_SINGLE_MODEL_PROMPT : prev.colorAdaptPrompt,
       generationProgress: { ...INITIAL_GENERATION_PROGRESS }
     }));
   }, []);
@@ -132,6 +136,7 @@ export const useChromaApp = () => {
       secondaryBatchQueue: [],
       styleConfig: INITIAL_STYLE_CONFIG,
       editPrompt: '',
+      colorAdaptPrompt: COLOR_ADAPT_SINGLE_MODEL_PROMPT,
       editUserInput: '',
       progress: 0,
       progressText: '',
@@ -139,7 +144,8 @@ export const useChromaApp = () => {
       analysisModel: 'doubao-seed-2-0-lite',
       generationModel: 'doubao-seedream-5.0-lite',
       generationProgress: { ...INITIAL_GENERATION_PROGRESS },
-      precisionMode: false
+      colorWorkflowMode: 'single_model',
+      secondaryWorkflowMode: 'single_model'
     }));
     if (progressInterval.current) clearInterval(progressInterval.current);
   }, []);
@@ -160,11 +166,30 @@ export const useChromaApp = () => {
   }, []);
 
   const setEditPrompt = useCallback((val: string) => {
-    setState(prev => ({ ...prev, editPrompt: val }));
+    setState(prev => prev.mode === 'COLOR_ADAPT'
+      ? { ...prev, colorAdaptPrompt: val }
+      : { ...prev, editPrompt: val }
+    );
   }, []);
 
   const setEditUserInput = useCallback((val: string) => {
     setState(prev => ({ ...prev, editUserInput: val }));
+  }, []);
+
+  const setSecondaryWorkflowMode = useCallback((mode: SecondaryWorkflowMode) => {
+    setState(prev => ({
+      ...prev,
+      secondaryWorkflowMode: mode,
+      editPrompt: mode === 'single_model' ? (prev.editPrompt || SECONDARY_SINGLE_MODEL_PROMPT) : ''
+    }));
+  }, []);
+
+  const setColorWorkflowMode = useCallback((mode: ColorWorkflowMode) => {
+    setState(prev => ({
+      ...prev,
+      colorWorkflowMode: mode,
+      colorAdaptPrompt: mode === 'single_model' ? (prev.colorAdaptPrompt || COLOR_ADAPT_SINGLE_MODEL_PROMPT) : ''
+    }));
   }, []);
 
   const setAnalysisModel = useCallback((modelKey: any) => {
@@ -187,10 +212,6 @@ export const useChromaApp = () => {
     });
   }, []);
 
-  const togglePrecisionMode = useCallback(() => {
-    setState(prev => ({ ...prev, precisionMode: !prev.precisionMode }));
-  }, []);
-
   const handleStyleChange = useCallback((key: keyof StyleConfig) => {
     setState(prev => ({
       ...prev,
@@ -201,23 +222,44 @@ export const useChromaApp = () => {
     }));
   }, []);
 
-  const handleAnalyzeSecondary = useCallback(async () => {
-    if (!state.posterImage) return;
-
-    setState(prev => ({ ...prev, status: ProcessingState.ANALYZING, progressText: 'AI Creating Plan...' }));
-
+  const handleAnalyzeColorAdapt = useCallback(async () => {
+    if (!state.posterImage || !state.referenceImage || state.colorWorkflowMode !== 'dual_model') return;
+    setState(prev => ({ ...prev, status: ProcessingState.ANALYZING, progressText: 'AI Analyzing Color Strategy...' }));
     try {
-      const plan = await generateSecondaryImagePlan(state.posterImage, state.analysisModel);
+      const prompt = await analyzeAndCreateColorAdaptPrompt(
+        state.posterImage,
+        state.referenceImage,
+        state.styleConfig,
+        state.analysisModel
+      );
       setState(prev => ({
         ...prev,
         status: ProcessingState.READY,
-        editPrompt: plan
+        colorAdaptPrompt: prompt
       }));
     } catch (e: any) {
-      console.error("Secondary Plan Generation Failed", e);
-      setState(prev => ({ ...prev, status: ProcessingState.ERROR, errorMessage: "Failed to generate plan." }));
+      console.error("Color Adapt Analysis Failed", e);
+      setState(prev => ({ ...prev, status: ProcessingState.ERROR, errorMessage: "Failed to analyze color adaptation." }));
     }
-  }, [state.posterImage, state.analysisModel]);
+  }, [state.posterImage, state.referenceImage, state.styleConfig, state.analysisModel, state.colorWorkflowMode]);
+
+  const handleAnalyzeSecondary = useCallback(async () => {
+    if (!state.posterImage || state.secondaryWorkflowMode !== 'dual_model') return;
+
+    setState(prev => ({ ...prev, status: ProcessingState.ANALYZING, progressText: 'AI Analyzing Image...' }));
+
+    try {
+      const prompt = await analyzeAndCreateSecondaryPrompt(state.posterImage, state.analysisModel);
+      setState(prev => ({
+        ...prev,
+        status: ProcessingState.READY,
+        editPrompt: prompt
+      }));
+    } catch (e: any) {
+      console.error("Secondary Prompt Analysis Failed", e);
+      setState(prev => ({ ...prev, status: ProcessingState.ERROR, errorMessage: "Failed to analyze image." }));
+    }
+  }, [state.posterImage, state.analysisModel, state.secondaryWorkflowMode]);
 
   // ── Image Edit Deep Analysis ──
 
@@ -230,7 +272,6 @@ export const useChromaApp = () => {
       const professionalPrompt = await analyzeAndCreateEditPrompt(
         state.posterImage,
         state.editUserInput,
-        state.referenceImage,
         state.analysisModel
       );
       setState(prev => ({
@@ -242,7 +283,7 @@ export const useChromaApp = () => {
       console.error("Edit Analysis Failed", e);
       setState(prev => ({ ...prev, status: ProcessingState.ERROR, errorMessage: "Failed to analyze edit request." }));
     }
-  }, [state.posterImage, state.editUserInput, state.referenceImage, state.analysisModel]);
+  }, [state.posterImage, state.editUserInput, state.analysisModel]);
 
   const startSimulatedProgress = () => {
     setState(prev => ({ ...prev, progress: 5, progressText: 'Initialization...' }));
@@ -256,8 +297,8 @@ export const useChromaApp = () => {
 
         let text = 'Processing...';
         if (state.mode === 'SECONDARY_GENERATION') {
-          if (newProgress < 50) text = 'Composing 1:1 format...';
-          else text = 'Rendering detail shot...';
+          if (newProgress < 50) text = 'Adapting to 1:1 composition...';
+          else text = 'Preserving details and style...';
         } else if (state.mode === 'TRANSLATION') {
           if (newProgress < 50) text = 'Translating content...';
           else text = 'Reconstructing layout...';
@@ -345,14 +386,14 @@ export const useChromaApp = () => {
 
     const promises = queue.map(async (item) => {
       try {
-        // Step 1: Plan
         updateItem(item.id, { status: 'PLANNING' });
-        const plan = await generateSecondaryImagePlan(item.original, state.analysisModel);
-        updateItem(item.id, { status: 'PLANNED', plan });
+        const prompt = state.secondaryWorkflowMode === 'dual_model'
+          ? await analyzeAndCreateSecondaryPrompt(item.original, state.analysisModel)
+          : SECONDARY_SINGLE_MODEL_PROMPT;
+        updateItem(item.id, { status: 'PLANNED', plan: prompt });
 
-        // Step 2: Generate
         updateItem(item.id, { status: 'GENERATING' });
-        const result = await generateSecondaryImage(item.original, plan, state.generationModel);
+        const result = await generateSecondaryImage(item.original, prompt, state.generationModel);
         updateItem(item.id, { status: 'DONE', result });
 
         setState(prev => ({
@@ -390,14 +431,13 @@ export const useChromaApp = () => {
         ? (prev.language === 'zh' ? `${errorCount} 张生成失败` : `${errorCount} generation(s) failed`)
         : null
     }));
-  }, [state.secondaryBatchQueue, state.analysisModel, state.generationModel]);
+  }, [state.secondaryBatchQueue, state.analysisModel, state.generationModel, state.secondaryWorkflowMode]);
 
   const handleGenerate = useCallback(async () => {
     if (!state.posterImage) return;
-    if (state.mode === 'COLOR_ADAPT' || state.mode === 'PRODUCT_REPLACE') {
+    if (state.mode === 'COLOR_ADAPT') {
       if (!state.referenceImage) return;
     }
-    if (state.mode === 'SECONDARY_GENERATION' && !state.editPrompt) return;
     if (state.mode === 'IMAGE_EDIT' && !state.editPrompt) return;
 
     if ((window as any).aistudio) {
@@ -423,48 +463,29 @@ export const useChromaApp = () => {
     startSimulatedProgress();
 
     try {
-      // --- Precision mode: run color mapping analysis first ---
-      let colorMappingPlan: string | null = null;
-      if (state.mode === 'COLOR_ADAPT' && state.precisionMode) {
-        setState(prev => ({
-          ...prev,
-          progressText: prev.language === 'zh' ? '正在分析色彩区域...' : 'Analyzing color zones...'
-        }));
-        colorMappingPlan = await createColorMappingPlan(
-          state.posterImage!,
-          state.referenceImage!,
-          state.analysisModel
-        );
-        setState(prev => ({
-          ...prev,
-          progress: 15,
-          progressText: prev.language === 'zh' ? '色彩映射完成，开始生成...' : 'Mapping complete, generating...'
-        }));
+      let colorPrompt = '';
+      if (state.mode === 'COLOR_ADAPT') {
+        colorPrompt = state.colorWorkflowMode === 'single_model'
+          ? (state.colorAdaptPrompt || COLOR_ADAPT_SINGLE_MODEL_PROMPT)
+          : (state.colorAdaptPrompt || await analyzeAndCreateColorAdaptPrompt(
+            state.posterImage!,
+            state.referenceImage!,
+            state.styleConfig,
+            state.analysisModel
+          ));
       }
 
       if (isConcurrent) {
-        // --- Concurrent generation path ---
         const count = state.concurrentCount;
         const promises = Array.from({ length: count }, (_, i) =>
-          (colorMappingPlan
-            ? generatePreciseAdaptation(
-              state.posterImage!,
-              state.referenceImage!,
-              state.extractedPalette!,
-              state.styleConfig,
-              colorMappingPlan,
-              state.generationModel
-            )
-            : generatePosterAdaptation(
-              state.posterImage!,
-              state.referenceImage!,
-              state.extractedPalette!,
-              state.styleConfig,
-              state.language,
-              state.generationModel
-            )
+          generateColorAdaptation(
+            state.posterImage!,
+            state.referenceImage!,
+            state.extractedPalette as string[] | null,
+            state.styleConfig,
+            colorPrompt,
+            state.generationModel
           ).then((result) => {
-            // Incrementally update as each image completes
             setState(prev => {
               const newImages = [...prev.resultImages, result];
               const newProgress = {
@@ -476,7 +497,7 @@ export const useChromaApp = () => {
               return {
                 ...prev,
                 resultImages: newImages,
-                resultImage: prev.resultImage || result, // first success becomes primary
+                resultImage: prev.resultImage || result,
                 generationProgress: newProgress,
                 progress: progressPercent,
                 progressText: `${prev.language === 'zh' ? '正在生成' : 'Generating'} ${newProgress.completed}/${count}...`
@@ -509,47 +530,35 @@ export const useChromaApp = () => {
         }));
 
       } else {
-        // --- Single generation path (original logic) ---
         let generatedImage = '';
 
         if (state.mode === 'COLOR_ADAPT') {
-          if (colorMappingPlan) {
-            generatedImage = await generatePreciseAdaptation(
-              state.posterImage!,
-              state.referenceImage!,
-              state.extractedPalette!,
-              state.styleConfig,
-              colorMappingPlan,
-              state.generationModel
-            );
-          } else {
-            generatedImage = await generatePosterAdaptation(
-              state.posterImage!,
-              state.referenceImage!,
-              state.extractedPalette!,
-              state.styleConfig,
-              state.language,
-              state.generationModel
-            );
-          }
-        } else if (state.mode === 'PRODUCT_REPLACE') {
-          generatedImage = await generateProductReplacement(
+          generatedImage = await generateColorAdaptation(
             state.posterImage!,
-            state.referenceImage!
+            state.referenceImage!,
+            state.extractedPalette as string[] | null,
+            state.styleConfig,
+            colorPrompt,
+            state.generationModel
           );
+          setState(prev => ({ ...prev, colorAdaptPrompt: colorPrompt }));
         } else if (state.mode === 'IMAGE_EDIT') {
           generatedImage = await generateImageEdit(
             state.posterImage!,
-            state.editUserInput || state.editPrompt,
-            state.referenceImage,
-            state.generationModel,
-            state.editPrompt || null
+            state.editPrompt,
+            state.generationModel
           );
         } else if (state.mode === 'SECONDARY_GENERATION') {
+          const secondaryPrompt = state.secondaryWorkflowMode === 'single_model'
+            ? (state.editPrompt || SECONDARY_SINGLE_MODEL_PROMPT)
+            : (state.editPrompt || await analyzeAndCreateSecondaryPrompt(state.posterImage!, state.analysisModel));
+
           generatedImage = await generateSecondaryImage(
             state.posterImage!,
-            state.editPrompt
+            secondaryPrompt,
+            state.generationModel
           );
+          setState(prev => ({ ...prev, editPrompt: secondaryPrompt }));
         } else {
           const translationResult = await generateImageTranslation(
             state.posterImage!,
@@ -600,7 +609,7 @@ export const useChromaApp = () => {
       }
       setState(prev => ({ ...prev, status: ProcessingState.ERROR, errorMessage: errorMsg, progress: 0 }));
     }
-  }, [state.mode, state.posterImage, state.referenceImage, state.extractedPalette, state.styleConfig, state.language, state.translationTarget, state.targetFont, state.editPrompt, state.analysisModel, state.generationModel, state.concurrentCount]);
+  }, [state.mode, state.posterImage, state.referenceImage, state.extractedPalette, state.styleConfig, state.language, state.translationTarget, state.targetFont, state.editPrompt, state.analysisModel, state.generationModel, state.concurrentCount, state.secondaryWorkflowMode, state.colorWorkflowMode, state.colorAdaptPrompt]);
 
   const handleExport = useCallback(async () => {
     const isBatchTranslateMode = state.mode === 'TRANSLATION' && state.pipelineQueue.length > 0;
@@ -677,12 +686,14 @@ export const useChromaApp = () => {
     setTargetFont,
     onEditPromptChange: setEditPrompt,
     onEditUserInputChange: setEditUserInput,
+    setSecondaryWorkflowMode,
+    setColorWorkflowMode,
+    handleAnalyzeColorAdapt,
     handleAnalyzeEdit,
     setAnalysisModel,
     setGenerationModel,
     setConcurrentCount,
     handleSelectResult,
-    togglePrecisionMode,
     handleSecondaryBatchUpload,
     handleRemoveSecondaryBatchItem,
     handleClearSecondaryBatch,

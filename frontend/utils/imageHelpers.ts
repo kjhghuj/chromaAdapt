@@ -1,13 +1,31 @@
 
 import { ColorPalette } from '../types';
 
-export const getCSSFilterFromPalette = (palette: ColorPalette | null): string => {
+export const getCSSFilterFromPalette = (palette: ColorPalette | string[] | null): string => {
   if (!palette) return 'none';
-  
-  const hex = palette.main.replace('#', '');
+
+  const pickHex = (): string | null => {
+    if (Array.isArray(palette)) {
+      const first = palette.find((item) => typeof item === 'string' && item.trim());
+      return first || null;
+    }
+    if (typeof palette.main === 'string' && palette.main.trim()) {
+      return palette.main;
+    }
+    return null;
+  };
+
+  const rawHex = pickHex();
+  if (!rawHex) return 'none';
+
+  const hex = rawHex.replace('#', '');
+  if (hex.length < 6) return 'none';
+
   const r = parseInt(hex.substring(0, 2), 16);
   const g = parseInt(hex.substring(2, 4), 16);
   const b = parseInt(hex.substring(4, 6), 16);
+
+  if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) return 'none';
   
   const hueRotation = (r > b) ? '45deg' : '180deg';
   const saturate = (r + g + b) > 400 ? '1.2' : '0.8';

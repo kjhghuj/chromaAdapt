@@ -1,10 +1,10 @@
 import React from 'react';
-import { ColorPalette, Language } from '../types';
+import { Language } from '../types';
 import { getTranslation } from '../utils/translations';
 import { Palette } from 'lucide-react';
 
 interface Props {
-  palette: ColorPalette | null;
+  palette: string[] | null;
   isLoading: boolean;
   lang: Language;
 }
@@ -51,17 +51,12 @@ const ColorPaletteDisplay: React.FC<Props> = ({ palette, isLoading, lang }) => {
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-5 w-full">
       <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
         <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide shrink-0">{t.targetTone}</h3>
-        {palette.mood && (
-          <span className="inline-block px-2 py-1 bg-brand-50 text-brand-700 text-xs rounded-full font-medium border border-brand-100 max-w-full truncate">
-            {palette.mood}
-          </span>
-        )}
       </div>
       
       <div className="grid grid-cols-3 gap-2 sm:gap-4 items-end justify-items-center w-full">
-        <ColorSwatch color={palette.secondary} label={t.secondary} />
-        <ColorSwatch color={palette.main} label={t.main} size="lg" />
-        <ColorSwatch color={palette.accent} label={t.accent} />
+        <ColorSwatch color={palette[1] || '#888888'} label={t.secondary} />
+        <ColorSwatch color={palette[0] || '#666666'} label={t.main} size="lg" />
+        <ColorSwatch color={palette[2] || '#444444'} label={t.accent} />
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Edit3, Loader2, Sparkles, Upload, Trash2, Images } from 'lucide-react';
-import { AppState, ProcessingState } from '../../types';
+import { AppState, ProcessingState, SecondaryWorkflowMode, ColorWorkflowMode } from '../../types';
 
 interface EditPromptSectionProps {
   state: AppState;
@@ -14,6 +14,9 @@ interface EditPromptSectionProps {
   onSecondaryBatchGenerate?: () => void;
   onRemoveSecondaryBatchItem?: (id: string) => void;
   onClearSecondaryBatch?: () => void;
+  onSecondaryWorkflowModeChange?: (mode: SecondaryWorkflowMode) => void;
+  onAnalyzeColorAdapt?: () => void;
+  onColorWorkflowModeChange?: (mode: ColorWorkflowMode) => void;
 }
 
 const EditPromptSection: React.FC<EditPromptSectionProps> = ({
@@ -26,20 +29,104 @@ const EditPromptSection: React.FC<EditPromptSectionProps> = ({
   onSecondaryBatchUpload,
   onSecondaryBatchGenerate,
   onRemoveSecondaryBatchItem,
-  onClearSecondaryBatch
+  onClearSecondaryBatch,
+  onSecondaryWorkflowModeChange,
+  onAnalyzeColorAdapt,
+  onColorWorkflowModeChange
 }) => {
   const showSecondaryUI = state.mode === 'SECONDARY_GENERATION';
+  const showColorAdaptUI = state.mode === 'COLOR_ADAPT';
   const showEditPrompt = state.mode === 'IMAGE_EDIT';
 
-  if (!showSecondaryUI && !showEditPrompt) return null;
+  if (!showSecondaryUI && !showEditPrompt && !showColorAdaptUI) return null;
 
   const isZh = state.language === 'zh';
   const hasBatchQueue = state.secondaryBatchQueue.length > 0;
   const isProcessing = state.status === ProcessingState.GENERATING || state.status === ProcessingState.ANALYZING;
+  const isDualModel = state.secondaryWorkflowMode === 'dual_model';
+  const isDualColorModel = state.colorWorkflowMode === 'dual_model';
 
   return (
     <div className="space-y-4">
       {/* SECONDARY GENERATION SPECIFIC UI */}
+      {showColorAdaptUI && (
+        <div className="space-y-3">
+          <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
+            <Sparkles size={13} /> {isZh ? '色彩适配工作流' : 'Color Adapt Workflow'}
+          </h2>
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => onColorWorkflowModeChange?.('single_model')}
+              disabled={isProcessing}
+              className={`py-2.5 rounded-lg border text-sm font-semibold transition-all ${state.colorWorkflowMode === 'single_model'
+                ? 'border-brand-500 bg-brand-50 text-brand-700'
+                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                }`}
+            >
+              {isZh ? '单模型模式' : 'Single Model'}
+            </button>
+            <button
+              type="button"
+              onClick={() => onColorWorkflowModeChange?.('dual_model')}
+              disabled={isProcessing}
+              className={`py-2.5 rounded-lg border text-sm font-semibold transition-all ${state.colorWorkflowMode === 'dual_model'
+                ? 'border-brand-500 bg-brand-50 text-brand-700'
+                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                }`}
+            >
+              {isZh ? '双模型模式' : 'Dual Model'}
+            </button>
+          </div>
+
+          {isDualColorModel && (
+            <button
+              type="button"
+              onClick={onAnalyzeColorAdapt}
+              disabled={!state.posterImage || !state.referenceImage || isProcessing}
+              className={`w-full py-2.5 rounded-lg border-2 border-dashed flex items-center justify-center gap-2 font-medium transition-all ${state.posterImage && state.referenceImage
+                  ? 'border-brand-400 bg-brand-50 text-brand-700 hover:bg-brand-100'
+                  : 'border-slate-200 text-slate-400 cursor-not-allowed bg-slate-50'
+                }`}
+            >
+              {state.status === ProcessingState.ANALYZING ? (
+                <>
+                  <Loader2 className="animate-spin w-4 h-4" /> {t.analyzing || "Analyzing..."}
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" /> {isZh ? "1. 分析主图与参考图并生成提示词" : "Analyze Images and Create Prompt"}
+                </>
+              )}
+            </button>
+          )}
+
+          {(state.colorAdaptPrompt || state.colorWorkflowMode === 'single_model' || state.status === ProcessingState.ANALYZING) && (
+            <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+              <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1">
+                <Edit3 size={12} /> {isZh ? "色彩适配提示词 (可编辑)" : "Color Adapt Prompt (Editable)"}
+              </h2>
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-2 relative overflow-hidden">
+                {state.status === ProcessingState.ANALYZING && (
+                  <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/90 backdrop-blur-[1px] text-brand-600">
+                    <Loader2 className="animate-spin mb-2" size={24} />
+                    <span className="text-xs font-medium animate-pulse">{isZh ? "正在生成色彩迁移提示词..." : "Generating color adaptation prompt..."}</span>
+                  </div>
+                )}
+                <textarea
+                  value={state.colorAdaptPrompt}
+                  onChange={(e) => onEditPromptChange && onEditPromptChange(e.target.value)}
+                  placeholder={isZh ? "单模型：直接使用通用提示词；双模型：先点击上方分析生成定制提示词" : "Single mode uses universal prompt; dual mode analyzes first"}
+                  className="w-full p-2 text-sm text-slate-700 placeholder:text-slate-400 border-0 focus:ring-0 min-h-[120px] resize-none bg-transparent"
+                  disabled={isProcessing}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {showSecondaryUI && (
         <>
           {/* ── Batch Upload Section ── */}
@@ -144,44 +231,69 @@ const EditPromptSection: React.FC<EditPromptSectionProps> = ({
             </div>
           )}
 
-          {/* Step 1: AI Plan Analysis Button (single mode) */}
-          <button
-            type="button"
-            onClick={onAnalyzeSecondary}
-            disabled={!state.posterImage || state.status === ProcessingState.ANALYZING || state.status === ProcessingState.GENERATING}
-            className={`w-full py-2.5 rounded-lg border-2 border-dashed flex items-center justify-center gap-2 font-medium transition-all ${state.posterImage && !state.editPrompt
-                ? 'border-brand-400 bg-brand-50 text-brand-700 hover:bg-brand-100'
-                : 'border-slate-200 text-slate-400 cursor-not-allowed bg-slate-50'
-              }`}
-          >
-            {state.status === ProcessingState.ANALYZING ? (
-              <>
-                <Loader2 className="animate-spin w-4 h-4" /> {t.analyzing || "Analyzing..."}
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-4 h-4" /> 1. {isZh ? "AI 生成计划" : "AI Generate Plan"}
-              </>
-            )}
-          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => onSecondaryWorkflowModeChange?.('single_model')}
+              disabled={isProcessing}
+              className={`py-2.5 rounded-lg border text-sm font-semibold transition-all ${state.secondaryWorkflowMode === 'single_model'
+                ? 'border-brand-500 bg-brand-50 text-brand-700'
+                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                }`}
+            >
+              {isZh ? '单模型模式' : 'Single Model'}
+            </button>
+            <button
+              type="button"
+              onClick={() => onSecondaryWorkflowModeChange?.('dual_model')}
+              disabled={isProcessing}
+              className={`py-2.5 rounded-lg border text-sm font-semibold transition-all ${state.secondaryWorkflowMode === 'dual_model'
+                ? 'border-brand-500 bg-brand-50 text-brand-700'
+                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                }`}
+            >
+              {isZh ? '双模型模式' : 'Dual Model'}
+            </button>
+          </div>
 
-          {/* Step 2: The Plan (Editable) - Only Secondary Mode */}
-          {(state.editPrompt || state.status === ProcessingState.ANALYZING) && (
+          {isDualModel && (
+            <button
+              type="button"
+              onClick={onAnalyzeSecondary}
+              disabled={!state.posterImage || state.status === ProcessingState.ANALYZING || state.status === ProcessingState.GENERATING}
+              className={`w-full py-2.5 rounded-lg border-2 border-dashed flex items-center justify-center gap-2 font-medium transition-all ${state.posterImage
+                  ? 'border-brand-400 bg-brand-50 text-brand-700 hover:bg-brand-100'
+                  : 'border-slate-200 text-slate-400 cursor-not-allowed bg-slate-50'
+                }`}
+            >
+              {state.status === ProcessingState.ANALYZING ? (
+                <>
+                  <Loader2 className="animate-spin w-4 h-4" /> {t.analyzing || "Analyzing..."}
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" /> 1. {isZh ? "分析图片并生成提示词" : "Analyze and Create Prompt"}
+                </>
+              )}
+            </button>
+          )}
+
+          {(state.editPrompt || state.status === ProcessingState.ANALYZING || state.secondaryWorkflowMode === 'single_model') && (
             <div className="animate-in fade-in slide-in-from-top-2 duration-300">
               <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1">
-                <Edit3 size={12} /> {isZh ? "生成计划 (可编辑)" : "Generated Plan (Editable)"}
+                <Edit3 size={12} /> {isZh ? "1:1 生成提示词 (可编辑)" : "1:1 Prompt (Editable)"}
               </h2>
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-2 relative overflow-hidden">
                 {state.status === ProcessingState.ANALYZING && (
                   <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/90 backdrop-blur-[1px] text-brand-600">
                     <Loader2 className="animate-spin mb-2" size={24} />
-                    <span className="text-xs font-medium animate-pulse">{isZh ? "正在生成创作计划..." : "Generating creative plan..."}</span>
+                    <span className="text-xs font-medium animate-pulse">{isZh ? "正在生成专业提示词..." : "Generating professional prompt..."}</span>
                   </div>
                 )}
                 <textarea
                   value={state.editPrompt}
                   onChange={(e) => onEditPromptChange && onEditPromptChange(e.target.value)}
-                  placeholder={isZh ? "AI 将在此生成计划..." : "AI will generate the plan here..."}
+                  placeholder={isZh ? "单模型模式：可直接使用通用提示词；双模型模式：点击上方按钮先生成提示词" : "Single mode: use universal prompt directly; Dual mode: analyze first"}
                   className="w-full p-2 text-sm text-slate-700 placeholder:text-slate-400 border-0 focus:ring-0 min-h-[120px] resize-none bg-transparent"
                   disabled={state.status === ProcessingState.GENERATING || state.status === ProcessingState.ANALYZING}
                 />

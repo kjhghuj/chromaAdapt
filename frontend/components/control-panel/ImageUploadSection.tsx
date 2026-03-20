@@ -25,7 +25,6 @@ const ImageUploadSection: React.FC<ImageUploadSectionProps> = ({
   };
 
   const getReferenceLabel = () => {
-    if (state.mode === 'PRODUCT_REPLACE') return t.productRefSwap;
     if (state.mode === 'IMAGE_EDIT') return t.editRef;
     return t.productRef;
   };

@@ -3,7 +3,6 @@ export type Language = 'en' | 'zh';
 
 export type AppMode =
   | 'COLOR_ADAPT'
-  | 'PRODUCT_REPLACE'
   | 'IMAGE_EDIT'
   | 'TRANSLATION'
   | 'SECONDARY_GENERATION';
@@ -12,8 +11,8 @@ export type TranslationTarget = 'zh' | 'en' | 'ja' | 'ko' | 'fr' | 'de' | 'es' |
 
 export type TargetFont = 'original' | 'sans_serif' | 'serif' | 'handwritten' | 'bold_display';
 
-export type AnalysisModel = 'doubao-seed-2-0-lite' | 'doubao-vision';
-export type GenerationModel = 'doubao-seedream-5.0-lite' | 'doubao-seedream-4.0';
+export type AnalysisModel = 'doubao-seed-2-0-lite' | 'doubao-seed-2-0-mini' | 'doubao-seed-2-0-pro' | 'doubao-vision';
+export type GenerationModel = 'doubao-seedream-5.0-lite' | 'doubao-seedream-4.5';
 
 export interface ColorPalette {
   main: string;
@@ -32,6 +31,8 @@ export enum ProcessingState {
 }
 
 export type PipelineStatus = 'PENDING' | 'TRANSLATING' | 'DONE' | 'ERROR';
+export type SecondaryWorkflowMode = 'single_model' | 'dual_model';
+export type ColorWorkflowMode = 'single_model' | 'dual_model';
 
 export type SecondaryBatchStatus = 'PENDING' | 'PLANNING' | 'PLANNED' | 'GENERATING' | 'DONE' | 'ERROR';
 
@@ -64,7 +65,7 @@ export interface AppState {
   language: Language;
   posterImage: string | null;
   referenceImage: string | null;
-  extractedPalette: ColorPalette | null;
+  extractedPalette: string[] | null;
   status: ProcessingState;
   errorMessage: string | null;
   resultImage: string | null;
@@ -72,6 +73,7 @@ export interface AppState {
   translationTarget: TranslationTarget;
   targetFont: TargetFont;
   editPrompt: string;
+  colorAdaptPrompt: string;
   editUserInput: string;
   // Progress UI
   progress: number;
@@ -85,10 +87,11 @@ export interface AppState {
   concurrentCount: number;
   resultImages: string[];
   generationProgress: GenerationProgress;
-  // Precision Mode
-  precisionMode: boolean;
+  // Color Adapt Workflow
+  colorWorkflowMode: ColorWorkflowMode;
   // Secondary Batch
   secondaryBatchQueue: SecondaryBatchItem[];
+  secondaryWorkflowMode: SecondaryWorkflowMode;
 }
 
 export interface StyleConfig {

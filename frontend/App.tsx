@@ -14,6 +14,7 @@ function App() {
     handleRemoveImage,
     handleGenerate,
     handleAnalyzeSecondary,
+    handleAnalyzeColorAdapt,
     handleAnalyzeEdit,
     handleExport,
     handleStyleChange,
@@ -28,11 +29,14 @@ function App() {
     handleBatchTranslateStart,
     setConcurrentCount,
     handleSelectResult,
-    togglePrecisionMode,
     handleSecondaryBatchUpload,
     handleRemoveSecondaryBatchItem,
     handleClearSecondaryBatch,
-    handleSecondaryBatchGenerate
+    handleSecondaryBatchGenerate,
+    setGenerationModel,
+    setAnalysisModel,
+    setSecondaryWorkflowMode,
+    setColorWorkflowMode
   } = useChromaApp();
 
   return (
@@ -41,9 +45,13 @@ function App() {
       <Header
         language={state.language}
         currentMode={state.mode}
+        analysisModel={state.analysisModel}
+        generationModel={state.generationModel}
         onModeChange={setMode}
         onToggleLanguage={toggleLanguage}
         onReset={resetApp}
+        onAnalysisModelChange={setAnalysisModel}
+        onGenerationModelChange={setGenerationModel}
       />
 
       <main className="flex-1 min-h-0 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -66,6 +74,7 @@ function App() {
             onTranslationTargetChange={setTranslationTarget}
             onGenerate={handleGenerate}
             onAnalyzeSecondary={handleAnalyzeSecondary}
+            onAnalyzeColorAdapt={handleAnalyzeColorAdapt}
             onAnalyzeEdit={handleAnalyzeEdit}
             onTargetFontChange={setTargetFont}
             onEditPromptChange={onEditPromptChange}
@@ -73,11 +82,12 @@ function App() {
             onPipelineBatchUpload={handlePipelineBatchUpload}
             onBatchTranslateStart={handleBatchTranslateStart}
             onConcurrentCountChange={setConcurrentCount}
-            onTogglePrecisionMode={togglePrecisionMode}
             onSecondaryBatchUpload={handleSecondaryBatchUpload}
             onSecondaryBatchGenerate={handleSecondaryBatchGenerate}
             onRemoveSecondaryBatchItem={handleRemoveSecondaryBatchItem}
             onClearSecondaryBatch={handleClearSecondaryBatch}
+            onSecondaryWorkflowModeChange={setSecondaryWorkflowMode}
+            onColorWorkflowModeChange={setColorWorkflowMode}
           />
 
           <PreviewPanel

@@ -1,0 +1,28 @@
+# ================================================
+# Dockerfile - Webhook + Deploy Script Runner
+# 负责接收 Webhook 并触发部署
+# ================================================
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# 安装依赖
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir flask gunicorn
+
+# 复制 webhook 服务
+COPY webhook_server.py /app/
+COPY deploy.sh /app/
+RUN chmod +x /app/deploy.sh
+
+# 创建日志目录
+RUN mkdir -p /var/log
+
+EXPOSE 9000
+
+# 使用 gunicorn 运行 Flask（生产环境推荐）
+CMD ["gunicorn", "--bind", "0.0.0.0:9000", "--workers", "2", "--access-logfile", "-", "--error-logfile", "-", "webhook_server:app"]

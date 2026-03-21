@@ -1,0 +1,16 @@
+[Unit]
+Description=ChromaAdapt AI Backend Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/chromaadapt-ai/backend
+ExecStart=/usr/bin/python /opt/chromaadapt-ai/backend/manage.py runserver 0.0.0.0:8000
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/chroma-backend.log
+StandardError=append:/var/log/chroma-backend.log
+
+[Install]
+WantedBy=multi-user.target

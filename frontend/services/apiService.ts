@@ -1,7 +1,7 @@
 import { StyleConfig, TargetFont } from '../types';
 import { resizeImage } from '../utils/imageHelpers';
 
-const BACKEND_URL = 'http://localhost:8000';
+const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 const cleanBase64 = (base64: string) => base64.replace(/^data:image\/[a-z]+;base64,/, '');
 
